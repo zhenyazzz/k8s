@@ -3,13 +3,12 @@ kind: Service
 metadata:
   name: gateway-service
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: gateway-service
   ports:
     - port: 8080
       targetPort: 8080
-      nodePort: 30080
 
 ---
 apiVersion: apps/v1
