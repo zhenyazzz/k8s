@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+spec:
+  type: ClusterIP
+  selector:
+    app: payment-service
+  ports:
+    - port: 8084
+      targetPort: 8084
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+        - name: payment-service
+          image: docker.io/zhenya465/payment-service:sha-452cbfc
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8084
+          envFrom:
+            - configMapRef:
+                name: shared-config
+            - secretRef:
+                name: shared-secrets
+          env:
+            - name: SERVER_PORT
+              value: "8084"
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://payment-db:5432/payment_service_db"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: payment-db-secret
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: payment-db-secret
+                  key: POSTGRES_PASSWORD
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            initialDelaySeconds: 25
+            periodSeconds: 10
+            failureThreshold: 20
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8084
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 4
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8084
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
