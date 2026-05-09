@@ -1,3 +1,18 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: payment-mongo-secret
+spec:
+  secretStoreRef:
+    kind: SecretStore
+    name: infisical
+  target:
+    name: payment-mongo-secret
+  data:
+    - secretKey: SPRING_DATA_MONGODB_URI
+      remoteRef:
+        key: /payment-mongo/SPRING_DATA_MONGODB_URI
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -16,7 +31,8 @@ kind: Deployment
 metadata:
   name: payment-service
 spec:
-  replicas: 1
+  replicas: 2
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
       app: payment-service
@@ -25,10 +41,27 @@ spec:
       labels:
         app: payment-service
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: payment-service
       containers:
         - name: payment-service
-          image: docker.io/zhenya465/payment-service:sha-452cbfc
+          image: docker.io/zhenya465/payment-service:sha-e095084
           imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 8084
           envFrom:
@@ -36,21 +69,11 @@ spec:
                 name: shared-config
             - secretRef:
                 name: shared-secrets
+            - secretRef:
+                name: payment-mongo-secret
           env:
             - name: SERVER_PORT
               value: "8084"
-            - name: SPRING_DATASOURCE_URL
-              value: "jdbc:postgresql://payment-db:5432/payment_service_db"
-            - name: SPRING_DATASOURCE_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: payment-db-secret
-                  key: POSTGRES_USER
-            - name: SPRING_DATASOURCE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: payment-db-secret
-                  key: POSTGRES_PASSWORD
           startupProbe:
             httpGet:
               path: /actuator/health

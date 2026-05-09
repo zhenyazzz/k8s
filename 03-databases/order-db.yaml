@@ -11,16 +11,29 @@ spec:
       targetPort: 5432
 
 ---
-apiVersion: v1
-kind: Secret
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
 metadata:
   name: order-db-secret
-type: Opaque
-stringData:
-  POSTGRES_USER: "order_service"
-  POSTGRES_PASSWORD: "order_secret_123"
-  POSTGRES_DB: "order_service_db"
-  POSTGRES_POSTGRES_PASSWORD: "postgres_superuser_order_db_dev"
+spec:
+  secretStoreRef:
+    kind: SecretStore
+    name: infisical
+  target:
+    name: order-db-secret
+  data:
+    - secretKey: POSTGRES_USER
+      remoteRef:
+        key: /order-db/POSTGRES_USER
+    - secretKey: POSTGRES_PASSWORD
+      remoteRef:
+        key: /order-db/POSTGRES_PASSWORD
+    - secretKey: POSTGRES_DB
+      remoteRef:
+        key: /order-db/POSTGRES_DB
+    - secretKey: POSTGRES_POSTGRES_PASSWORD
+      remoteRef:
+        key: /order-db/POSTGRES_POSTGRES_PASSWORD
 
 ---
 apiVersion: apps/v1
@@ -42,8 +55,17 @@ spec:
         fsGroup: 1001
       containers:
         - name: postgresql
-          image: docker.io/bitnami/postgresql:latest
+          image: docker.io/bitnamilegacy/postgresql:17.2.0-debian-12-r12
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 1001
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: tcp-postgresql
               containerPort: 5432

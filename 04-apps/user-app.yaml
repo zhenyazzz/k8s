@@ -16,7 +16,8 @@ kind: Deployment
 metadata:
   name: user-service
 spec:
-  replicas: 1
+  replicas: 2
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
       app: user-service
@@ -25,10 +26,27 @@ spec:
       labels:
         app: user-service
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: user-service
       containers:
         - name: user-service
-          image: docker.io/zhenya465/user-service:sha-18220ac
+          image: docker.io/zhenya465/user-service:sha-7be82de
           imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 8081
           envFrom:

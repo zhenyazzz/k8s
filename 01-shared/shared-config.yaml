@@ -10,8 +10,6 @@ data:
 
   SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka-0.kafka.default.svc.cluster.local:9092"
 
-  SPRING_DATA_MONGODB_URI: "mongodb://mongodb-0.mongodb:27017/payment_service?replicaSet=rs0"
-
   USER_SERVICE_URL: "http://user-service:8081"
   AUTH_SERVICE_URL: "http://auth-service:8082"
   ORDER_SERVICE_URL: "http://order-service:8083"

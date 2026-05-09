@@ -16,7 +16,8 @@ kind: Deployment
 metadata:
   name: gateway-service
 spec:
-  replicas: 1
+  replicas: 2
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
       app: gateway-service
@@ -25,10 +26,27 @@ spec:
       labels:
         app: gateway-service
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: gateway-service
       containers:
         - name: gateway-service
-          image: docker.io/zhenya465/gateway-service:sha-1ca9192
+          image: docker.io/zhenya465/gateway-service:sha-62a8ed5
           imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 8080
           envFrom:

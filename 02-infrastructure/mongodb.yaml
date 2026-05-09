@@ -1,3 +1,30 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: mongodb-secret
+spec:
+  secretStoreRef:
+    kind: SecretStore
+    name: infisical
+  target:
+    name: mongodb-secret
+  data:
+    - secretKey: MONGODB_ROOT_PASSWORD
+      remoteRef:
+        key: /mongodb/MONGODB_ROOT_PASSWORD
+    - secretKey: MONGODB_USERNAME
+      remoteRef:
+        key: /mongodb/MONGODB_USERNAME
+    - secretKey: MONGODB_PASSWORD
+      remoteRef:
+        key: /mongodb/MONGODB_PASSWORD
+    - secretKey: MONGODB_DATABASE
+      remoteRef:
+        key: /mongodb/MONGODB_DATABASE
+    - secretKey: MONGODB_REPLICA_SET_KEY
+      remoteRef:
+        key: /mongodb/MONGODB_REPLICA_SET_KEY
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -28,36 +55,56 @@ spec:
     spec:
       containers:
       - name: mongodb
-        image: docker.io/bitnami/mongodb:latest
-        command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+        image: docker.io/bitnamilegacy/mongodb:8.0.13-debian-12-r0
+        env:
+        - name: MONGODB_ROOT_USER
+          value: root
+        - name: MONGODB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: MONGODB_ROOT_PASSWORD
+        - name: MONGODB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: MONGODB_USERNAME
+        - name: MONGODB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: MONGODB_PASSWORD
+        - name: MONGODB_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: MONGODB_DATABASE
+        - name: MONGODB_REPLICA_SET_MODE
+          value: primary
+        - name: MONGODB_REPLICA_SET_NAME
+          value: rs0
+        - name: MONGODB_REPLICA_SET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: MONGODB_REPLICA_SET_KEY
+        - name: MONGODB_ADVERTISED_HOSTNAME
+          value: mongodb-0.mongodb.default.svc.cluster.local
         ports:
         - containerPort: 27017
         volumeMounts:
         - name: mongo-data
-          mountPath: /data/db
-        lifecycle:
-          postStart:
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - |
-                  until mongosh --host 127.0.0.1 --port 27017 --eval "db.adminCommand('ping')" --quiet >/dev/null 2>&1; do
-                    sleep 2
-                  done
-
-                  mongosh --host 127.0.0.1 --port 27017 --quiet <<'EOF'
-                  try {
-                    rs.status()
-                    print("Replica set already initialized")
-                  } catch (e) {
-                    print("Initializing replica set rs0")
-                    rs.initiate({
-                      _id: "rs0",
-                      members: [{ _id: 0, host: "mongodb-0.mongodb.default.svc.cluster.local:27017" }]
-                    })
-                  }
-                  EOF
+          mountPath: /bitnami/mongodb
+        startupProbe:
+          tcpSocket:
+            port: 27017
+          periodSeconds: 5
+          failureThreshold: 60
+        readinessProbe:
+          tcpSocket:
+            port: 27017
+          periodSeconds: 5
+          failureThreshold: 6
   volumeClaimTemplates:
   - metadata:
       name: mongo-data
