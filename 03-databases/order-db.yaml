@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-db
+spec:
+  type: ClusterIP
+  selector:
+    app: order-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: order-db-secret
+spec:
+  secretStoreRef:
+    kind: SecretStore
+    name: infisical
+  target:
+    name: order-db-secret
+  data:
+    - secretKey: POSTGRES_USER
+      remoteRef:
+        key: /order-db/POSTGRES_USER
+    - secretKey: POSTGRES_PASSWORD
+      remoteRef:
+        key: /order-db/POSTGRES_PASSWORD
+    - secretKey: POSTGRES_DB
+      remoteRef:
+        key: /order-db/POSTGRES_DB
+    - secretKey: POSTGRES_POSTGRES_PASSWORD
+      remoteRef:
+        key: /order-db/POSTGRES_POSTGRES_PASSWORD
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: order-db
+spec:
+  serviceName: order-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-db
+  template:
+    metadata:
+      labels:
+        app: order-db
+    spec:
+      securityContext:
+        fsGroup: 1001
+      containers:
+        - name: postgresql
+          image: docker.io/bitnamilegacy/postgresql:17.2.0-debian-12-r12
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: tcp-postgresql
+              containerPort: 5432
+          env:
+            - name: POSTGRESQL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: order-db-secret
+                  key: POSTGRES_USER
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: order-db-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRESQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: order-db-secret
+                  key: POSTGRES_DB
+            - name: POSTGRESQL_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: order-db-secret
+                  key: POSTGRES_POSTGRES_PASSWORD
+            - name: POSTGRESQL_LISTEN_ADDRESSES
+              value: "*"
+          volumeMounts:
+            - name: order-db-data
+              mountPath: /bitnami/postgresql
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - exec pg_isready -U "$POSTGRESQL_USERNAME" -d "$POSTGRESQL_DATABASE" -h 127.0.0.1 -p 5432
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - exec pg_isready -U "$POSTGRESQL_USERNAME" -d "$POSTGRESQL_DATABASE" -h 127.0.0.1 -p 5432
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+  volumeClaimTemplates:
+    - metadata:
+        name: order-db-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

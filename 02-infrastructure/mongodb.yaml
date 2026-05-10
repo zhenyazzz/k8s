@@ -1,0 +1,122 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: mongodb-secret
+spec:
+  secretStoreRef:
+    kind: SecretStore
+    name: infisical
+  target:
+    name: mongodb-secret
+  data:
+    - secretKey: MONGODB_ROOT_PASSWORD
+      remoteRef:
+        key: /mongodb/MONGODB_ROOT_PASSWORD
+    - secretKey: MONGODB_USERNAME
+      remoteRef:
+        key: /mongodb/MONGODB_USERNAME
+    - secretKey: MONGODB_PASSWORD
+      remoteRef:
+        key: /mongodb/MONGODB_PASSWORD
+    - secretKey: MONGODB_DATABASE
+      remoteRef:
+        key: /mongodb/MONGODB_DATABASE
+    - secretKey: MONGODB_REPLICA_SET_KEY
+      remoteRef:
+        key: /mongodb/MONGODB_REPLICA_SET_KEY
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: mongodb
+  ports:
+    - port: 27017
+      targetPort: 27017
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+spec:
+  serviceName: "mongodb"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      securityContext:
+        fsGroup: 1001
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+      - name: mongodb
+        image: docker.io/bitnamilegacy/mongodb:8.0.13-debian-12-r0
+        securityContext:
+          allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
+        env:
+        - name: MONGODB_ROOT_USER
+          value: root
+        - name: MONGODB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: MONGODB_ROOT_PASSWORD
+        - name: MONGODB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: MONGODB_USERNAME
+        - name: MONGODB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: MONGODB_PASSWORD
+        - name: MONGODB_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: MONGODB_DATABASE
+        - name: MONGODB_REPLICA_SET_MODE
+          value: primary
+        - name: MONGODB_REPLICA_SET_NAME
+          value: rs0
+        - name: MONGODB_REPLICA_SET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: MONGODB_REPLICA_SET_KEY
+        - name: MONGODB_ADVERTISED_HOSTNAME
+          value: mongodb-0.mongodb.default.svc.cluster.local
+        ports:
+        - containerPort: 27017
+        volumeMounts:
+        - name: mongo-data
+          mountPath: /bitnami/mongodb
+        startupProbe:
+          tcpSocket:
+            port: 27017
+          periodSeconds: 5
+          failureThreshold: 60
+        readinessProbe:
+          tcpSocket:
+            port: 27017
+          periodSeconds: 5
+          failureThreshold: 6
+  volumeClaimTemplates:
+  - metadata:
+      name: mongo-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
