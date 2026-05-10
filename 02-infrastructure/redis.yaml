@@ -24,9 +24,26 @@ spec:
       labels:
         app: redis
     spec:
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: redis
           image: redis:7.2.5-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
           args:
             - redis-server
             - --maxmemory 256mb          

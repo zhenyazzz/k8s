@@ -38,6 +38,10 @@ spec:
         - name: kafka
           image: docker.io/bitnamilegacy/kafka:3.9.0-debian-12-r9
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 9092
             - containerPort: 9093
